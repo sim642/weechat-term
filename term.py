@@ -38,6 +38,7 @@ SCRIPT_DESC = "Virtual terminal emulator inside WeeChat buffer"
 # SCRIPT_REPO = "https://github.com/sim642/latex_unicode"
 
 SCRIPT_COMMAND = SCRIPT_NAME
+SCRIPT_BUFFER = SCRIPT_NAME
 
 IMPORT_OK = True
 
@@ -65,87 +66,115 @@ def error(string):
 
 
 buffer_i = 0
-Term = namedtuple("Term", ["screen", "stream", "fd", "hook_fd"])
+# Term = namedtuple("Term", ["screen", "stream", "fd", "hook_fd"])
 terms = {}
 
-def term_render(buffer):
+class Term:
+    def __init__(self, command):
+        self.command = command
+
+        self.buffer = self.create_buffer()
+
+        self.screen = pyte.Screen(80, 24)
+        self.screen.set_mode(pyte.modes.LNM)
+        self.stream = pyte.ByteStream(self.screen)
+
+        self.pid = None
+        self.hook_fd = ""
+        self.f = None
+
+    def run(self):
+        self.pid, fd = self.fork()
+
+        self.hook_fd = weechat.hook_fd(fd, 1, 0, 0, "term_fd_cb", self.buffer)
+        self.f = os.fdopen(fd, "w+", 0)
+
+    buffer_index = 0
+
+    @classmethod
+    def create_buffer(cls):
+        name = "{}.{}".format(SCRIPT_BUFFER, cls.buffer_index)
+        cls.buffer_index += 1
+
+        buffer = weechat.buffer_new(name, "term_buffer_input_cb", "", "term_buffer_close_cb", "")
+        weechat.buffer_set(buffer, "type", "free")
+        weechat.buffer_set(buffer, "display", "1") # switch to buffer
+
+        return buffer
+
+    def fork(self):
+        pid, fd = pty.fork()
+        if pid == 0: # child
+            args = shlex.split(self.command)
+            env = self.get_env()
+            os.execvpe(args[0], args, env)
+
+        return pid, fd
+
+    def get_env(self):
+        env = {}
+        env.update(os.environ) # copy to not modify os.environ
+
+        env["TERM"] = "linux"
+        env["COLUMNS"] = str(self.screen.columns)
+        env["LINES"] = str(self.screen.lines)
+
+        return env
+
+    def render(self):
+        for i, line in enumerate(self.screen.display, 1):
+            weechat.prnt_y(self.buffer, i - 1, line)
+
+    def input(self, data):
+        self.f.write(data + "\n")
+        self.render()
+
+    def close(self):
+        pass
+
+    def closed(self):
+        weechat.unhook(self.hook_fd)
+        self.hook_fd = ""
+
+    def output(self, fd):
+        try:
+            data = os.read(fd, 1024)
+        except OSError:
+            data = bytes()
+
+        if len(data) > 0:
+            self.stream.feed(data)
+            self.render()
+        else:
+            self.closed()
+
+
+def term_buffer_input_cb(data, buffer, input_data):
     term = terms[buffer]
-
-    log(term)
-
-    for i, line in enumerate(term.screen.display, 1):
-        weechat.prnt_y(buffer, i - 1, line)
-
-def buffer_input_cb(data, buffer, input_data):
-    term = terms[buffer]
-
-    log("in" + input_data)
-    log(term)
-
-    term.fd.write(input_data + "\n")
-    term_render(buffer)
+    term.input(input_data)
 
     return weechat.WEECHAT_RC_OK
 
-def buffer_close_cb(data, buffer):
+def term_buffer_close_cb(data, buffer):
+    term = terms[buffer]
+    term.close()
+
     return weechat.WEECHAT_RC_OK
 
-def fd_cb(data, fd):
+def term_fd_cb(data, fd):
     term = terms[data]
-
-    fd = int(fd)
-    log("fd" + repr(fd))
-
-    try:
-        buf = os.read(fd, 1024)
-    except OSError:
-        buf = bytes()
-
-    if len(buf) > 0:
-        log("out" + buf.decode())
-        term.stream.feed(buf)
-        term_render(data)
-    else:
-        weechat.unhook(term.hook_fd)
-        term.fd.close()
-        log("CLOSED")
+    term.output(int(fd))
 
     return weechat.WEECHAT_RC_OK
 
-def command_cb(data, buffer, args):
+
+def term_command_cb(data, buffer, args):
     """Handle command hook."""
 
-    global buffer_i
+    term = Term(args)
+    terms[term.buffer] = term
 
-    buffer = weechat.buffer_new("term.{}".format(buffer_i), "buffer_input_cb", "", "buffer_close_cb", "")
-    buffer_i += 1
-    weechat.buffer_set(buffer, "type", "free")
-    weechat.buffer_set(buffer, "display", "1")
-
-    screen = pyte.Screen(80, 24)
-    screen.set_mode(pyte.modes.LNM)
-    stream = pyte.ByteStream(screen)
-
-    a = shlex.split(args)
-    log(a)
-
-    pid, fd = pty.fork()
-    if pid == 0: # child
-        env = {}
-        env.update(os.environ)
-        env["TERM"] = "linux"
-        env["COLUMNS"] = str(screen.columns)
-        env["LINES"] = str(screen.lines)
-        os.execvpe(a[0], a, env)
-
-    hook_fd = weechat.hook_fd(fd, 1, 0, 0, "fd_cb", buffer)
-
-    log(pid)
-    log(fd)
-
-    fd = os.fdopen(fd, "w+", 0)
-
-    terms[buffer] = Term(screen=screen, stream=stream, fd=fd, hook_fd=hook_fd)
+    term.run()
 
     return weechat.WEECHAT_RC_OK
 
@@ -155,4 +184,4 @@ if __name__ == "__main__" and IMPORT_OK:
                              """""",
                              """""",
                              """""",
-                             "command_cb", "")
+                             "term_command_cb", "")
