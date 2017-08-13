@@ -51,7 +51,6 @@ except ImportError:
     print("Get WeeChat now at: http://www.weechat.org/")
     IMPORT_OK = False
 
-from collections import namedtuple
 import pyte, pyte.modes
 import os, pty, signal
 import shlex
@@ -68,9 +67,6 @@ def error(string):
 
     weechat.prnt("", "{}{}: {}".format(weechat.prefix("error"), SCRIPT_NAME, string))
 
-
-buffer_i = 0
-# Term = namedtuple("Term", ["screen", "stream", "fd", "hook_fd"])
 terms = {}
 
 class Term:
@@ -140,7 +136,6 @@ class Term:
     def resized(self):
         size = self.get_fit_size()
         if size:
-            log(size)
             self.resize(*size)
 
     def fork(self):
