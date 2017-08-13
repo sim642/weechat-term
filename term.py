@@ -249,7 +249,7 @@ def term_shutdown_cb():
 if __name__ == "__main__" and IMPORT_OK:
     if weechat.register(SCRIPT_NAME, SCRIPT_AUTHOR, SCRIPT_VERSION, SCRIPT_LICENSE, SCRIPT_DESC, "term_shutdown_cb", ""):
         weechat.hook_command(SCRIPT_COMMAND, SCRIPT_DESC,
-                             """""",
-                             """""",
-                             """""",
+"""<command>""",
+"""command: the command to execute""",
+"""""", # TODO: bash completion
                              "term_command_cb", "")
