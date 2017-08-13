@@ -172,7 +172,7 @@ class Term:
 
     def render(self):
         for i, line in enumerate(self.display_buffer, 1): # TODO: only render dirty lines
-            weechat.prnt_y(self.buffer, i - 1, self.render_line(line))
+            weechat.prnt_y(self.buffer, i - 1, self.render_line(line) + weechat.color("reset"))
 
     def input(self, data):
         if self.pid:
