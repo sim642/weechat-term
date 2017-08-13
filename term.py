@@ -56,6 +56,7 @@ import pyte, pyte.modes
 import os, pty, signal
 import shlex
 import pyte.screens, pyte.graphics
+import fcntl, termios, struct
 
 def log(string):
     """Log script's message to core buffer."""
@@ -80,6 +81,7 @@ class Term:
 
         self.screen = pyte.Screen(80, 24)
         self.screen.set_mode(pyte.modes.LNM)
+        self.screen.write_process_input = lambda data: self.input(data.encode("charmap"))
         self.stream = pyte.ByteStream(self.screen)
 
         self.pid = None
@@ -90,7 +92,9 @@ class Term:
         self.pid, fd = self.fork()
 
         self.hook_fd = weechat.hook_fd(fd, 1, 0, 0, "term_fd_cb", self.buffer)
-        self.f = os.fdopen(fd, "w+", 0)
+        self.f = os.fdopen(fd, "w+b", 0)
+
+        weechat.buffer_set(self.buffer, "display", "1") # switch to buffer
 
     buffer_index = 0
 
@@ -101,9 +105,43 @@ class Term:
 
         buffer = weechat.buffer_new(name, "term_buffer_input_cb", "", "term_buffer_close_cb", "")
         weechat.buffer_set(buffer, "type", "free")
-        weechat.buffer_set(buffer, "display", "1") # switch to buffer
 
         return buffer
+
+    def get_fit_size(self):
+        widths = []
+        heights = []
+
+        infolist = weechat.infolist_get("window", "", "")
+        while weechat.infolist_next(infolist):
+            buffer = weechat.infolist_pointer(infolist, "buffer")
+            if buffer == self.buffer:
+                width = weechat.infolist_integer(infolist, "chat_width")
+                height = weechat.infolist_integer(infolist, "chat_height")
+
+                widths.append(width)
+                heights.append(height)
+        weechat.infolist_free(infolist)
+
+        if widths and heights:
+            return (min(heights), min(widths))
+        else:
+            return None
+
+    def resize(self, lines, columns):
+        if not self.pid: # not running
+            return
+
+        self.screen.resize(lines, columns)
+        fcntl.ioctl(self.f.fileno(), termios.TIOCSWINSZ, struct.pack("HHHH", lines, columns, 0, 0)) # crazy kernel magic
+        os.kill(self.pid, signal.SIGWINCH)
+        self.render()
+
+    def resized(self):
+        size = self.get_fit_size()
+        if size:
+            log(size)
+            self.resize(*size)
 
     def fork(self):
         pid, fd = pty.fork()
@@ -119,8 +157,8 @@ class Term:
         env.update(os.environ) # copy to not modify os.environ
 
         env["TERM"] = "linux"
-        env["COLUMNS"] = str(self.screen.columns)
-        env["LINES"] = str(self.screen.lines)
+        # env["COLUMNS"] = str(self.screen.columns)
+        # env["LINES"] = str(self.screen.lines)
 
         return env
 
@@ -178,7 +216,7 @@ class Term:
 
     def input(self, data):
         if self.pid:
-            self.f.write(data + "\n")
+            self.f.write(data)
             self.render()
         else:
             error("cannot write to ended process")
@@ -215,7 +253,7 @@ class Term:
 
 def term_buffer_input_cb(data, buffer, input_data):
     term = terms[buffer]
-    term.input(input_data)
+    term.input((input_data + "\n").encode("utf-8"))
 
     return weechat.WEECHAT_RC_OK
 
@@ -228,6 +266,24 @@ def term_buffer_close_cb(data, buffer):
 def term_fd_cb(data, fd):
     term = terms[data]
     term.output(int(fd))
+
+    return weechat.WEECHAT_RC_OK
+
+def term_buffer_resize_cb(data, signal, signal_data):
+    if signal_data in terms:
+        term = terms[signal_data]
+        term.resized()
+
+    return weechat.WEECHAT_RC_OK
+
+def term_window_resize_cb(data, signal, signal_data):
+    infolist = weechat.infolist_get("window", signal_data, "")
+    if weechat.infolist_next(infolist):
+        buffer = weechat.infolist_pointer(infolist, "buffer")
+        if buffer in terms:
+            term = terms[buffer]
+            term.resized()
+    weechat.infolist_free(infolist)
 
     return weechat.WEECHAT_RC_OK
 
@@ -255,3 +311,7 @@ if __name__ == "__main__" and IMPORT_OK:
 """command: the command to execute""",
 """""", # TODO: bash completion
                              "term_command_cb", "")
+
+        weechat.hook_signal("buffer_switch", "term_buffer_resize_cb", "")
+        weechat.hook_signal("window_zoomed", "term_window_resize_cb", "")
+        weechat.hook_signal("window_unzoomed", "term_window_resize_cb", "")
