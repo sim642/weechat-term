@@ -155,7 +155,7 @@ class Term:
         env = {}
         env.update(os.environ) # copy to not modify os.environ
 
-        env["TERM"] = "linux"
+        env["TERM"] = "xterm-256color"
         # env["COLUMNS"] = str(self.screen.columns)
         # env["LINES"] = str(self.screen.lines)
 
