@@ -19,7 +19,7 @@
 #
 # History:
 #
-# 2017-08-12, Simmo Saan <simmo.saan@gmail.com>
+# 2017-08-13, Simmo Saan <simmo.saan@gmail.com>
 #   version 0.1: initial script
 #
 
