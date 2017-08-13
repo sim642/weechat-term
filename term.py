@@ -20,6 +20,8 @@
 # History:
 #
 # 2017-08-13, Simmo Saan <simmo.saan@gmail.com>
+#   version 0.2: process cleanup, colors and attributes support
+# 2017-08-13, Simmo Saan <simmo.saan@gmail.com>
 #   version 0.1: initial script
 #
 
@@ -31,7 +33,7 @@ from __future__ import print_function, unicode_literals
 
 SCRIPT_NAME = "term"
 SCRIPT_AUTHOR = "Simmo Saan <simmo.saan@gmail.com>"
-SCRIPT_VERSION = "0.1"
+SCRIPT_VERSION = "0.2"
 SCRIPT_LICENSE = "GPL3"
 SCRIPT_DESC = "Virtual terminal emulator inside WeeChat buffer"
 
