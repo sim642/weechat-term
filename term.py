@@ -76,7 +76,7 @@ class Term:
         self.buffer = self.create_buffer()
 
         self.screen = pyte.DiffScreen(80, 24)
-        self.screen.set_mode(pyte.modes.LNM)
+        # self.screen.set_mode(pyte.modes.LNM)
         self.screen.write_process_input = lambda data: self.input(data.encode("charmap"))
         self.stream = pyte.ByteStream(self.screen)
 
@@ -212,6 +212,8 @@ class Term:
             weechat.prnt_y(self.buffer, y, message.encode("utf-8"))
             
         self.screen.dirty.clear()
+
+        # weechat.prnt("", "\n".join([line.encode("utf-8").rstrip() for line in self.screen.display]).rstrip())
 
     def input(self, data):
         if self.pid:
