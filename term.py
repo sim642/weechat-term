@@ -75,7 +75,7 @@ class Term:
 
         self.buffer = self.create_buffer()
 
-        self.screen = pyte.Screen(80, 24)
+        self.screen = pyte.DiffScreen(80, 24)
         self.screen.set_mode(pyte.modes.LNM)
         self.screen.write_process_input = lambda data: self.input(data.encode("charmap"))
         self.stream = pyte.ByteStream(self.screen)
@@ -157,24 +157,20 @@ class Term:
 
         return env
 
-    @property
-    def display_buffer(self):
+    def display_line(self, line):
         # copied from pyte.Screen
 
         wcwidth = pyte.screens.wcwidth
 
-        def render(line):
-            is_wide_char = False
-            for x in range(self.screen.columns):
-                if is_wide_char:  # Skip stub
-                    is_wide_char = False
-                    continue
-                char = line[x].data
-                assert sum(map(wcwidth, char[1:])) == 0
-                is_wide_char = wcwidth(char[0]) == 2
-                yield line[x]
-
-        return [render(self.screen.buffer[y]) for y in range(self.screen.lines)]
+        is_wide_char = False
+        for x in range(self.screen.columns):
+            if is_wide_char:  # Skip stub
+                is_wide_char = False
+                continue
+            char = line[x].data
+            assert sum(map(wcwidth, char[1:])) == 0
+            is_wide_char = wcwidth(char[0]) == 2
+            yield line[x]
 
     @classmethod
     def color2weechat(cls, color):
@@ -206,9 +202,12 @@ class Term:
         return "".join(map(cls.render_char, line))
 
     def render(self):
-        for i, line in enumerate(self.display_buffer, 1): # TODO: only render dirty lines
+        for y in self.screen.dirty:
+            line = self.display_line(self.screen.buffer[y])
             message = self.render_line(line) + weechat.color("reset")
-            weechat.prnt_y(self.buffer, i - 1, message.encode("utf-8"))
+            weechat.prnt_y(self.buffer, y, message.encode("utf-8"))
+            
+        self.screen.dirty.clear()
 
     def input(self, data):
         if self.pid:
