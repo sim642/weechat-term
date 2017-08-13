@@ -35,7 +35,7 @@ SCRIPT_VERSION = "0.1"
 SCRIPT_LICENSE = "GPL3"
 SCRIPT_DESC = "Virtual terminal emulator inside WeeChat buffer"
 
-# SCRIPT_REPO = "https://github.com/sim642/latex_unicode"
+SCRIPT_REPO = "https://github.com/sim642/weechat-term"
 
 SCRIPT_COMMAND = SCRIPT_NAME
 SCRIPT_BUFFER = SCRIPT_NAME
