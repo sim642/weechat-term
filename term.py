@@ -143,7 +143,11 @@ class Term:
         if pid == 0: # child
             args = shlex.split(self.command)
             env = self.get_env()
-            os.execvpe(args[0], args, env)
+            try:
+                os.execvpe(args[0], args, env)
+            except OSError as e: # args[0] not found
+                os._exit(1)
+
 
         return pid, fd
 
