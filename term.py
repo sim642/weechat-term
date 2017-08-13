@@ -51,7 +51,7 @@ except ImportError:
 
 from collections import namedtuple
 import pyte, pyte.modes
-import os, pty
+import os, pty, signal
 import shlex
 
 def log(string):
@@ -126,15 +126,28 @@ class Term:
             weechat.prnt_y(self.buffer, i - 1, line)
 
     def input(self, data):
-        self.f.write(data + "\n")
-        self.render()
+        if self.pid:
+            self.f.write(data + "\n")
+            self.render()
+        else:
+            error("cannot write to ended process")
 
     def close(self):
-        pass
+        self.closed()
 
     def closed(self):
+        if not self.pid: # already closed
+            return
+
         weechat.unhook(self.hook_fd)
         self.hook_fd = ""
+
+        self.f.close()
+        self.f = None
+
+        os.kill(self.pid, signal.SIGTERM)
+        os.waitpid(self.pid, 0)
+        self.pid = None
 
     def output(self, fd):
         try:
@@ -178,8 +191,14 @@ def term_command_cb(data, buffer, args):
 
     return weechat.WEECHAT_RC_OK
 
+def term_shutdown_cb():
+    for term in terms.values():
+        term.closed()
+
+    return weechat.WEECHAT_RC_OK
+
 if __name__ == "__main__" and IMPORT_OK:
-    if weechat.register(SCRIPT_NAME, SCRIPT_AUTHOR, SCRIPT_VERSION, SCRIPT_LICENSE, SCRIPT_DESC, "", ""):
+    if weechat.register(SCRIPT_NAME, SCRIPT_AUTHOR, SCRIPT_VERSION, SCRIPT_LICENSE, SCRIPT_DESC, "term_shutdown_cb", ""):
         weechat.hook_command(SCRIPT_COMMAND, SCRIPT_DESC,
                              """""",
                              """""",
