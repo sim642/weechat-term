@@ -53,6 +53,7 @@ from collections import namedtuple
 import pyte, pyte.modes
 import os, pty, signal
 import shlex
+import pyte.screens, pyte.graphics
 
 def log(string):
     """Log script's message to core buffer."""
@@ -121,9 +122,51 @@ class Term:
 
         return env
 
+    @property
+    def display_buffer(self):
+        # copied from pyte.Screen
+
+        wcwidth = pyte.screens.wcwidth
+
+        def render(line):
+            is_wide_char = False
+            for x in range(self.screen.columns):
+                if is_wide_char:  # Skip stub
+                    is_wide_char = False
+                    continue
+                char = line[x].data
+                assert sum(map(wcwidth, char[1:])) == 0
+                is_wide_char = wcwidth(char[0]) == 2
+                yield line[x]
+
+        return [render(self.screen.buffer[y]) for y in range(self.screen.lines)]
+
     def render(self):
-        for i, line in enumerate(self.screen.display, 1):
-            weechat.prnt_y(self.buffer, i - 1, line)
+        def col_map(col):
+            if col in pyte.graphics.FG_BG_256:
+                return pyte.graphics.FG_BG_256.index(col)
+            else:
+                return col
+
+        def render_char(char):
+            color = ""
+            if char.bold:
+                color += "*"
+            if char.italics:
+                color += "/"
+            if char.underscore:
+                color += "_"
+            if char.reverse:
+                color += "!"
+            color += col_map(char.fg) + "," + col_map(char.bg)
+
+            return weechat.color(color) + char.data
+
+        def render_line(line):
+            return "".join(map(render_char, line))
+
+        for i, line in enumerate(self.display_buffer, 1): # TODO: only render dirty lines
+            weechat.prnt_y(self.buffer, i - 1, render_line(line))
 
     def input(self, data):
         if self.pid:
