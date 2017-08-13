@@ -50,6 +50,8 @@ except ImportError:
 
 from collections import namedtuple
 import pyte, pyte.modes
+import os, pty
+import shlex
 
 def log(string):
     """Log script's message to core buffer."""
@@ -63,7 +65,7 @@ def error(string):
 
 
 buffer_i = 0
-Term = namedtuple("Term", ["screen", "stream", "process"])
+Term = namedtuple("Term", ["screen", "stream", "fd", "hook_fd"])
 terms = {}
 
 def term_render(buffer):
@@ -80,9 +82,9 @@ def buffer_input_cb(data, buffer, input_data):
     log("in" + input_data)
     log(term)
 
-    # term.stream.feed(input_data + "\n")
-    weechat.hook_set(term.process, "stdin", input_data + "\n")
+    # weechat.hook_set(term.process, "stdin", input_data + "\n")
     # weechat.hook_set(term.process, "stdin_close", "")  # optional
+    term.fd.write(input_data + "\n")
     term_render(buffer)
 
     return weechat.WEECHAT_RC_OK
@@ -125,6 +127,29 @@ def process_cb(data, command, return_code, out, err):
 
     return weechat.WEECHAT_RC_OK
 
+
+def fd_cb(data, fd):
+    term = terms[data]
+
+    fd = int(fd)
+    log("fd" + repr(fd))
+
+    try:
+        buf = os.read(fd, 1024)
+    except OSError:
+        buf = bytes()
+
+    if len(buf) > 0:
+        log("out" + buf.decode())
+        term.stream.feed(buf)
+        term_render(data)
+    else:
+        weechat.unhook(term.hook_fd)
+        term.fd.close()
+        log("CLOSED")
+
+    return weechat.WEECHAT_RC_OK
+
 def command_cb(data, buffer, args):
     """Handle command hook."""
 
@@ -138,12 +163,31 @@ def command_cb(data, buffer, args):
     screen = pyte.Screen(80, 24)
     screen.set_mode(pyte.modes.LNM)
     stream = pyte.ByteStream(screen)
-    process = weechat.hook_process_hashtable(args, {"stdin": "1", "buffer_flush": "1"}, 0, "process_cb", buffer)
+    # process = weechat.hook_process_hashtable(args, {"stdin": "1"}, 0, "process_cb", buffer)
     # process = weechat.hook_process("ls", 5000, "process_cb", buffer)
 
-    log(args)
+    a = shlex.split(args)
+    log(a)
 
-    terms[buffer] = Term(screen=screen, stream=stream, process=process)
+    pid, fd = pty.fork()
+    if pid == 0: # child
+        env = {}
+        env.update(os.environ)
+        env["TERM"] = "linux"
+        env["COLUMNS"] = str(screen.columns)
+        env["LINES"] = str(screen.lines)
+        os.execvpe(a[0], a, env)
+
+    hook_fd = weechat.hook_fd(fd, 1, 0, 0, "fd_cb", buffer)
+
+    log(pid)
+    log(fd)
+
+    fd = os.fdopen(fd, "w+", 0)
+
+    terms[buffer] = Term(screen=screen, stream=stream, fd=fd, hook_fd=hook_fd)
+
+    # fd.write("qwerty\n")
 
     return weechat.WEECHAT_RC_OK
 
