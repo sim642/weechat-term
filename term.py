@@ -82,8 +82,6 @@ def buffer_input_cb(data, buffer, input_data):
     log("in" + input_data)
     log(term)
 
-    # weechat.hook_set(term.process, "stdin", input_data + "\n")
-    # weechat.hook_set(term.process, "stdin_close", "")  # optional
     term.fd.write(input_data + "\n")
     term_render(buffer)
 
@@ -91,42 +89,6 @@ def buffer_input_cb(data, buffer, input_data):
 
 def buffer_close_cb(data, buffer):
     return weechat.WEECHAT_RC_OK
-
-def process_cb(data, command, return_code, out, err):
-    term = terms[data]
-
-    log(term)
-
-    # if return_code == weechat.WEECHAT_HOOK_PROCESS_ERROR:
-    #     error(command)
-    # elif return_code >= 0:
-    #     log("return {}".format(return_code))
-    # elif out != "":
-    #     log("out" + out)
-    #     term.stream.feed(out)
-    #     term_render(data)
-    # elif err != "":
-    #     log("err" + err)
-    # else:
-    #     error("shit")
-
-    if return_code == weechat.WEECHAT_HOOK_PROCESS_ERROR:
-        error(command)
-        return weechat.WEECHAT_RC_OK
-    if return_code >= 0:
-        log("return {}".format(return_code))
-    if out != "":
-        log("out" + out)
-        term.stream.feed(out)
-        term_render(data)
-    if err != "":
-        log("err" + err)
-        term.stream.feed(err)
-        term_render(data)
-
-
-    return weechat.WEECHAT_RC_OK
-
 
 def fd_cb(data, fd):
     term = terms[data]
@@ -163,8 +125,6 @@ def command_cb(data, buffer, args):
     screen = pyte.Screen(80, 24)
     screen.set_mode(pyte.modes.LNM)
     stream = pyte.ByteStream(screen)
-    # process = weechat.hook_process_hashtable(args, {"stdin": "1"}, 0, "process_cb", buffer)
-    # process = weechat.hook_process("ls", 5000, "process_cb", buffer)
 
     a = shlex.split(args)
     log(a)
@@ -187,8 +147,6 @@ def command_cb(data, buffer, args):
 
     terms[buffer] = Term(screen=screen, stream=stream, fd=fd, hook_fd=hook_fd)
 
-    # fd.write("qwerty\n")
-
     return weechat.WEECHAT_RC_OK
 
 if __name__ == "__main__" and IMPORT_OK:
@@ -198,22 +156,3 @@ if __name__ == "__main__" and IMPORT_OK:
                              """""",
                              """""",
                              "command_cb", "")
-
-
-# example with an external command
-def my_process_cb(data, command, return_code, out, err):
-    if return_code == weechat.WEECHAT_HOOK_PROCESS_ERROR:
-        weechat.prnt("", "Error with command '%s'" % command)
-        return weechat.WEECHAT_RC_OK
-    if return_code >= 0:
-        weechat.prnt("", "return_code = %d" % return_code)
-    if out != "":
-        weechat.prnt("", "stdout: %s" % out)
-    if err != "":
-        weechat.prnt("", "stderr: %s" % err)
-    return weechat.WEECHAT_RC_OK
-
-# hook = weechat.hook_process("ls", 5000, "my_process_cb", "")
-# hook = weechat.hook_process_hashtable("tee test2.txt", {"stdin": "1"}, 20000, "my_process_cb", "")
-# weechat.hook_set(hook, "stdin", "data sent to stdin of child process")
-# weechat.hook_set(hook, "stdin_close", "")  # optional
