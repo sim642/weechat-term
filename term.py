@@ -344,6 +344,9 @@ def term_window_resize_cb(data, signal, signal_data):
 def term_command_cb(data, buffer, args):
     """Handle command hook."""
 
+    if not args:
+        args = os.getenv("SHELL", "")
+
     term = Term(args)
     terms[term.buffer] = term
 
