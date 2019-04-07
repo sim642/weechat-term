@@ -75,7 +75,7 @@ class Term:
 
         self.buffer = self.create_buffer()
 
-        self.screen = pyte.DiffScreen(80, 24)
+        self.screen = pyte.Screen(80, 24)
         # self.screen.set_mode(pyte.modes.LNM)
         self.screen.write_process_input = lambda data: self.input(data.encode("charmap"))
         self.stream = pyte.ByteStream(self.screen)
