@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (c) 2017 by Simmo Saan <simmo.saan@gmail.com>
+# Copyright (c) 2017-2019 by Simmo Saan <simmo.saan@gmail.com>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@
 #
 # History:
 #
+# 2019-04-07, Simmo Saan <simmo.saan@gmail.com>
+#   version 0.3: window resizing, only dirty rendering and pyte 0.8.0 support
 # 2017-08-13, Simmo Saan <simmo.saan@gmail.com>
 #   version 0.2: process cleanup, colors and attributes support
 # 2017-08-13, Simmo Saan <simmo.saan@gmail.com>
@@ -33,7 +35,7 @@ from __future__ import print_function, unicode_literals
 
 SCRIPT_NAME = "term"
 SCRIPT_AUTHOR = "Simmo Saan <simmo.saan@gmail.com>"
-SCRIPT_VERSION = "0.2"
+SCRIPT_VERSION = "0.3"
 SCRIPT_LICENSE = "GPL3"
 SCRIPT_DESC = "Virtual terminal emulator inside WeeChat buffer"
 
