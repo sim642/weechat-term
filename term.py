@@ -69,6 +69,42 @@ def error(string):
 
     weechat.prnt("", "{}{}: {}".format(weechat.prefix("error"), SCRIPT_NAME, string))
 
+
+# copied from pyte.Screen to track movement events
+class DirtyCursor(object):
+    # __slots__ = ("x", "y", "attrs", "hidden")
+
+    def __init__(self, x, y, attrs=pyte.screens.Char(" ")):
+        self._x = x
+        self._y = y
+        self.attrs = attrs
+        self.hidden = False
+
+        self.moved_cb = None
+
+    @property
+    def x(self):
+        return self._x
+
+    @x.setter
+    def x(self, new_x):
+        old_x = self._x
+        self._x = new_x
+        if self.moved_cb:
+            self.moved_cb(old_x, new_x, self._y, self._y)
+
+    @property
+    def y(self):
+        return self._y
+
+    @y.setter
+    def y(self, new_y):
+        old_y = self._y
+        self._y = new_y
+        if self.moved_cb:
+            self.moved_cb(self._x, self._x, old_y, new_y)
+
+
 terms = {}
 
 class Term:
@@ -78,6 +114,12 @@ class Term:
         self.buffer = self.create_buffer()
 
         self.screen = pyte.Screen(80, 24)
+
+        # copied from pyte.Screen, cursor reset procedure
+        self.screen.cursor = DirtyCursor(0, 0)
+        self.screen.cursor.moved_cb = self.cursor_moved
+        self.screen.cursor_position()
+
         # self.screen.set_mode(pyte.modes.LNM)
         self.screen.write_process_input = lambda data: self.input(data.encode("charmap"))
         self.stream = pyte.ByteStream(self.screen)
@@ -187,30 +229,29 @@ class Term:
         else:
             raise RuntimeError("invalid color: '{}'".format(color))
 
-    @classmethod
-    def render_char(cls, char):
+    def render_char(self, x, y, char):
+        is_cursor_pos = x == self.screen.cursor.x and y == self.screen.cursor.y
         attrs = {
             "*": char.bold,
             "/": char.italics,
             "_": char.underscore,
-            "!": char.reverse
+            "!": char.reverse ^ is_cursor_pos
         }
         attrs_str = "".join([attr for attr, b in attrs.items() if b])
 
         return weechat.color("{attrs}{fg},{bg}".format(
             attrs=attrs_str,
-            fg=cls.color2weechat(char.fg),
-            bg=cls.color2weechat(char.bg)
+            fg=self.color2weechat(char.fg),
+            bg=self.color2weechat(char.bg)
         )) + char.data
 
-    @classmethod
-    def render_line(cls, line):
-        return "".join(map(cls.render_char, line))
+    def render_line(self, y, line):
+        return "".join((self.render_char(x, y, char) for x, char in enumerate(line)))
 
     def render(self):
         for y in self.screen.dirty:
             line = self.display_line(self.screen.buffer[y])
-            message = self.render_line(line) + weechat.color("reset")
+            message = self.render_line(y, line) + weechat.color("reset")
             weechat.prnt_y(self.buffer, y, message.encode("utf-8"))
             
         self.screen.dirty.clear()
@@ -252,6 +293,15 @@ class Term:
             self.render()
         else:
             self.closed()
+
+    def cursor_moved(self, old_x, new_x, old_y, new_y):
+        # self.screen.dirty.add(old_y)
+        # self.screen.dirty.add(new_y)
+        # self.render()
+        for y in (old_y, new_y):
+            line = self.display_line(self.screen.buffer[y])
+            message = self.render_line(y, line) + weechat.color("reset")
+            weechat.prnt_y(self.buffer, y, message.encode("utf-8"))
 
 
 def term_buffer_input_cb(data, buffer, input_data):
