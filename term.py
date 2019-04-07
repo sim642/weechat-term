@@ -284,7 +284,7 @@ class Term:
 
     def output(self, fd):
         try:
-            data = os.read(fd, 1024)
+            data = os.read(fd, 4096)
         except OSError:
             data = bytes()
 
@@ -295,13 +295,8 @@ class Term:
             self.closed()
 
     def cursor_moved(self, old_x, new_x, old_y, new_y):
-        # self.screen.dirty.add(old_y)
-        # self.screen.dirty.add(new_y)
-        # self.render()
-        for y in (old_y, new_y):
-            line = self.display_line(self.screen.buffer[y])
-            message = self.render_line(y, line) + weechat.color("reset")
-            weechat.prnt_y(self.buffer, y, message.encode("utf-8"))
+        self.screen.dirty.add(old_y)
+        self.screen.dirty.add(new_y)
 
 
 def term_buffer_input_cb(data, buffer, input_data):
